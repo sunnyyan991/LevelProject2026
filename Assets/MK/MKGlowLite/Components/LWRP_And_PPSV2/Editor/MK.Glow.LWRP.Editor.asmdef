@@ -1,0 +1,20 @@
+{
+    "name": "MK.Glow.LWRP.Editor",
+    "references": [
+        "GUID:a35efad8797223d499f8c68b1f545dbc",
+        "GUID:d60799ab2a985554ea1a39cd38695018",
+        "GUID:c10d564ea119ecf4e99ad2cce71eec1e",
+        "GUID:262271587a0eec8499eca2ca5a148d69"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
