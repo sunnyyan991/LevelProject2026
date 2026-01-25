@@ -42,7 +42,7 @@
                     "initialStateCheck": false
                 },
                 {
-                    "name": "Dash",
+                    "name": "Transform",
                     "type": "Button",
                     "id": "df541eb1-e0c8-4f3f-b758-5e17f22635aa",
                     "expectedControlType": "",
@@ -51,7 +51,7 @@
                     "initialStateCheck": false
                 },
                 {
-                    "name": "Attack",
+                    "name": "Attract",
                     "type": "Button",
                     "id": "8f948b0a-1d9d-4d81-8ce5-9c7ad31042f3",
                     "expectedControlType": "",
@@ -240,22 +240,22 @@
                 {
                     "name": "",
                     "id": "39eb72a4-f4b7-4171-84dc-e85d3b1c3226",
-                    "path": "<Keyboard>/j",
+                    "path": "<Mouse>/rightButton",
                     "interactions": "",
                     "processors": "",
                     "groups": ";KeyboardMouse",
-                    "action": "Dash",
+                    "action": "Transform",
                     "isComposite": false,
                     "isPartOfComposite": false
                 },
                 {
                     "name": "",
                     "id": "89e1d738-88a9-4d06-8d09-63e0e2274ec5",
-                    "path": "<Keyboard>/k",
+                    "path": "<Mouse>/leftButton",
                     "interactions": "",
                     "processors": "",
-                    "groups": ";KeyboardMouse",
-                    "action": "Attack",
+                    "groups": "",
+                    "action": "Attract",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }
