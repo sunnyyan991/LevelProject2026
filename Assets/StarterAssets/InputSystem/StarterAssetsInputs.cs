@@ -13,6 +13,8 @@ namespace StarterAssets
 		public bool jump;
 		public bool dash;
 		public bool sprint;
+		public bool cast;
+		public bool transformPressed;
 
 		[Header("Movement Settings")]
 		public bool analogMovement;
@@ -49,6 +51,19 @@ namespace StarterAssets
 			DashInput(value.isPressed);
 
         }
+
+		public void OnCast(InputValue value)
+		{
+			CastInput(value.isPressed);
+		}
+
+		public void OnTransform(InputValue value)
+		{
+			if (value.isPressed)
+			{
+				TransformInput(true);
+			}
+		}
 #endif
 
 
@@ -77,6 +92,27 @@ namespace StarterAssets
 			dash = newDashState;
 
         }
+
+		public void CastInput(bool newCastState)
+		{
+			cast = newCastState;
+		}
+
+		public void TransformInput(bool newTransformState)
+		{
+			transformPressed = newTransformState;
+		}
+
+		public bool ConsumeTransformPressed()
+		{
+			if (!transformPressed)
+			{
+				return false;
+			}
+
+			transformPressed = false;
+			return true;
+		}
 
 		private void OnApplicationFocus(bool hasFocus)
 		{

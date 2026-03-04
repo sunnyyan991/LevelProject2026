@@ -14,6 +14,12 @@ namespace StarterAssets
 #endif
     public class ThirdPersonController : MonoBehaviour
     {
+        public enum MagnetPolarity
+        {
+            Positive,
+            Negative
+        }
+
         [Header("Player")]
         [Tooltip("Move speed of the character in m/s")]
         public float MoveSpeed = 2.0f;
@@ -58,6 +64,49 @@ namespace StarterAssets
 
         [Tooltip("What layers the character uses as ground")]
         public LayerMask GroundLayers;
+
+        [Header("Magnet")]
+        public MagnetPolarity CurrentPolarity = MagnetPolarity.Positive;
+
+        [Tooltip("Magnetic force center. Leave empty to use player center.")]
+        public Transform MagnetOrigin;
+
+        [Tooltip("Positive polarity target layers.")]
+        public LayerMask PositiveTargetLayers;
+
+        [Tooltip("Negative polarity target layers.")]
+        public LayerMask NegativeTargetLayers;
+
+        [Tooltip("Effective radius of the magnetic force.")]
+        public float MagnetRadius = 6.0f;
+
+        [Tooltip("Force multiplier applied to magnetic targets.")]
+        public float MagnetForce = 30.0f;
+
+        [Tooltip("Looping particle played while casting with positive polarity.")]
+        public ParticleSystem PositiveCastEffect;
+
+        [Tooltip("Looping particle played while casting with negative polarity.")]
+        public ParticleSystem NegativeCastEffect;
+
+        [Tooltip("One-shot particle played when switching from positive to negative.")]
+        public ParticleSystem PositiveToNegativeSwitchEffect;
+
+        [Tooltip("One-shot particle played when switching from negative to positive.")]
+        public ParticleSystem NegativeToPositiveSwitchEffect;
+
+        [Header("Polarity Visual")]
+        [Tooltip("Renderer on the model node whose material should change with polarity.")]
+        public Renderer PolarityVisualRenderer;
+
+        [Tooltip("Material slot index on the target renderer.")]
+        public int PolarityMaterialIndex = 0;
+
+        [Tooltip("Material used when polarity is positive.")]
+        public Material PositivePolarityMaterial;
+
+        [Tooltip("Material used when polarity is negative.")]
+        public Material NegativePolarityMaterial;
 
         [Header("Cinemachine")]
         [Tooltip("The follow target set in the Cinemachine Virtual Camera that the camera will follow")]
@@ -108,6 +157,7 @@ namespace StarterAssets
         private Vector3 _spawnPosition;
         private Quaternion _spawnRotation;
         private int _respawnGraceFrames;
+        private readonly Collider[] _magnetOverlapResults = new Collider[32];
 
         private const float _threshold = 0.01f;
 
@@ -153,6 +203,23 @@ namespace StarterAssets
 
             AssignAnimationIDs();
 
+            if (PositiveTargetLayers.value == 0 && NegativeTargetLayers.value == 0)
+            {
+                int positiveLayer = LayerMask.NameToLayer("Positive");
+                int negativeLayer = LayerMask.NameToLayer("Negative");
+                if (positiveLayer >= 0)
+                {
+                    PositiveTargetLayers = LayerMask.GetMask("Positive");
+                }
+
+                if (negativeLayer >= 0)
+                {
+                    NegativeTargetLayers = LayerMask.GetMask("Negative");
+                }
+            }
+
+            ApplyPolarityVisualMaterial();
+
             // reset our timeouts on start
             _jumpTimeoutDelta = JumpTimeout;
             _fallTimeoutDelta = FallTimeout;
@@ -163,9 +230,15 @@ namespace StarterAssets
             _hasAnimator = TryGetComponent(out _animator);
 
             //Dash();
+            HandleMagnetismInputAndVfx();
             JumpAndGravity();
             GroundedCheck();
             Move();
+        }
+
+        private void FixedUpdate()
+        {
+            ApplyMagneticForces();
         }
 
         private void Dash()
@@ -184,6 +257,176 @@ namespace StarterAssets
                 //
                 _input.dash = false;
             }
+        }
+
+        private void HandleMagnetismInputAndVfx()
+        {
+            if (_input.ConsumeTransformPressed())
+            {
+                TogglePolarity();
+            }
+
+            bool isCasting = IsCastPressed();
+            UpdateCastEffects(isCasting);
+        }
+
+        private void TogglePolarity()
+        {
+            MagnetPolarity previousPolarity = CurrentPolarity;
+            CurrentPolarity = CurrentPolarity == MagnetPolarity.Positive ? MagnetPolarity.Negative : MagnetPolarity.Positive;
+
+            if (previousPolarity == MagnetPolarity.Positive && PositiveToNegativeSwitchEffect != null)
+            {
+                PositiveToNegativeSwitchEffect.Play();
+            }
+            else if (previousPolarity == MagnetPolarity.Negative && NegativeToPositiveSwitchEffect != null)
+            {
+                NegativeToPositiveSwitchEffect.Play();
+            }
+
+            ApplyPolarityVisualMaterial();
+            UpdateCastEffects(IsCastPressed());
+        }
+
+        private void ApplyMagneticForces()
+        {
+            if (!IsCastPressed() || MagnetForce <= 0f || MagnetRadius <= 0f)
+            {
+                return;
+            }
+
+            Vector3 origin = GetMagnetOrigin();
+            ApplyMagneticForcesForPolarity(origin, PositiveTargetLayers, MagnetPolarity.Positive);
+            ApplyMagneticForcesForPolarity(origin, NegativeTargetLayers, MagnetPolarity.Negative);
+        }
+
+        private void ApplyMagneticForcesForPolarity(Vector3 origin, LayerMask targetLayers, MagnetPolarity targetPolarity)
+        {
+            if (targetLayers.value == 0)
+            {
+                return;
+            }
+
+            int overlapCount = Physics.OverlapSphereNonAlloc(
+                origin,
+                MagnetRadius,
+                _magnetOverlapResults,
+                targetLayers,
+                QueryTriggerInteraction.Ignore
+            );
+
+            bool shouldAttract = CurrentPolarity != targetPolarity;
+            for (int i = 0; i < overlapCount; i++)
+            {
+                Collider targetCollider = _magnetOverlapResults[i];
+                if (targetCollider == null)
+                {
+                    continue;
+                }
+
+                Rigidbody targetBody = targetCollider.attachedRigidbody;
+                if (targetBody == null || targetBody.isKinematic)
+                {
+                    continue;
+                }
+
+                Vector3 toTarget = targetBody.worldCenterOfMass - origin;
+                float distance = toTarget.magnitude;
+                if (distance <= 0.001f || distance > MagnetRadius)
+                {
+                    continue;
+                }
+
+                Vector3 direction = toTarget / distance;
+                Vector3 forceDirection = shouldAttract ? -direction : direction;
+                float falloff = 1f - Mathf.Clamp01(distance / MagnetRadius);
+                targetBody.AddForce(forceDirection * (MagnetForce * falloff), ForceMode.Acceleration);
+            }
+        }
+
+        private Vector3 GetMagnetOrigin()
+        {
+            if (MagnetOrigin != null)
+            {
+                return MagnetOrigin.position;
+            }
+
+            return transform.position + _controller.center;
+        }
+
+        private bool IsCastPressed()
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (IsCurrentDeviceMouse && Mouse.current != null)
+            {
+                return Mouse.current.leftButton.isPressed;
+            }
+#endif
+            return _input.cast;
+        }
+
+        private void UpdateCastEffects(bool isCasting)
+        {
+            if (!isCasting)
+            {
+                StopCastEffects();
+                return;
+            }
+
+            ParticleSystem activeEffect = CurrentPolarity == MagnetPolarity.Positive ? PositiveCastEffect : NegativeCastEffect;
+            ParticleSystem inactiveEffect = CurrentPolarity == MagnetPolarity.Positive ? NegativeCastEffect : PositiveCastEffect;
+
+            if (activeEffect != null && !activeEffect.isPlaying)
+            {
+                activeEffect.Play();
+            }
+
+            if (inactiveEffect != null && inactiveEffect.isPlaying)
+            {
+                inactiveEffect.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            }
+        }
+
+        private void StopCastEffects()
+        {
+            if (PositiveCastEffect != null && PositiveCastEffect.isPlaying)
+            {
+                PositiveCastEffect.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            }
+
+            if (NegativeCastEffect != null && NegativeCastEffect.isPlaying)
+            {
+                NegativeCastEffect.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            }
+        }
+
+        private void ApplyPolarityVisualMaterial()
+        {
+            if (PolarityVisualRenderer == null)
+            {
+                return;
+            }
+
+            Material targetMaterial = CurrentPolarity == MagnetPolarity.Positive ? PositivePolarityMaterial : NegativePolarityMaterial;
+            if (targetMaterial == null)
+            {
+                return;
+            }
+
+            Material[] materials = PolarityVisualRenderer.materials;
+            if (materials == null || materials.Length == 0)
+            {
+                return;
+            }
+
+            int materialIndex = Mathf.Clamp(PolarityMaterialIndex, 0, materials.Length - 1);
+            materials[materialIndex] = targetMaterial;
+            PolarityVisualRenderer.materials = materials;
+        }
+
+        private void OnDisable()
+        {
+            StopCastEffects();
         }
 
         private void LateUpdate()
@@ -444,6 +687,9 @@ namespace StarterAssets
             Gizmos.DrawSphere(
                 new Vector3(transform.position.x, transform.position.y - GroundedOffset, transform.position.z),
                 GroundedRadius);
+
+            Gizmos.color = new Color(0.0f, 0.6f, 1.0f, 0.2f);
+            Gizmos.DrawWireSphere(Application.isPlaying ? GetMagnetOrigin() : transform.position, MagnetRadius);
         }
 
         private void OnFootstep(AnimationEvent animationEvent)
