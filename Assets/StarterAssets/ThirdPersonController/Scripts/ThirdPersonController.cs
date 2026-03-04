@@ -1,4 +1,4 @@
-﻿ using UnityEngine;
+ using UnityEngine;
 #if ENABLE_INPUT_SYSTEM 
 using UnityEngine.InputSystem;
 #endif
@@ -105,6 +105,9 @@ namespace StarterAssets
         private CharacterController _controller;
         private StarterAssetsInputs _input;
         private GameObject _mainCamera;
+        private Vector3 _spawnPosition;
+        private Quaternion _spawnRotation;
+        private int _respawnGraceFrames;
 
         private const float _threshold = 0.01f;
 
@@ -135,6 +138,8 @@ namespace StarterAssets
         private void Start()
         {
             _cinemachineTargetYaw = CinemachineCameraTarget.transform.rotation.eulerAngles.y;
+            _spawnPosition = transform.position;
+            _spawnRotation = transform.rotation;
             
             _hasAnimator = TryGetComponent(out _animator);
             _hasAnimator = false;
@@ -301,6 +306,14 @@ namespace StarterAssets
 
         private void JumpAndGravity()
         {
+            if (_respawnGraceFrames > 0)
+            {
+                _respawnGraceFrames--;
+                _verticalVelocity = 0f;
+                _input.jump = false;
+                return;
+            }
+
             if (Grounded)
             {
                 // reset the fall timeout timer
@@ -375,6 +388,50 @@ namespace StarterAssets
             return Mathf.Clamp(lfAngle, lfMin, lfMax);
         }
 
+        private void OnTriggerEnter(Collider other)
+        {
+            if (other.CompareTag("DeadZone"))
+            {
+                RespawnToStart();
+            }
+        }
+
+        private void OnControllerColliderHit(ControllerColliderHit hit)
+        {
+            if (hit.collider.CompareTag("DeadZone"))
+            {
+                RespawnToStart();
+            }
+        }
+
+        private void RespawnToStart()
+        {
+            Vector3 respawnPosition = _spawnPosition;
+            TryGetGroundSnappedRespawnPosition(out respawnPosition);
+            _controller.enabled = false;
+            transform.SetPositionAndRotation(respawnPosition, _spawnRotation);
+            _controller.enabled = true;
+
+            _verticalVelocity = -2f;
+            _jumpTimeoutDelta = JumpTimeout;
+            _fallTimeoutDelta = FallTimeout;
+            _input.jump = false;
+            _respawnGraceFrames = 2;
+        }
+
+        private bool TryGetGroundSnappedRespawnPosition(out Vector3 result)
+        {
+            result = _spawnPosition;
+            Vector3 rayOrigin = _spawnPosition + Vector3.up * 5f;
+            if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit hit, 100f, GroundLayers, QueryTriggerInteraction.Ignore))
+            {
+                float groundedY = hit.point.y - _controller.center.y + (_controller.height * 0.5f) + _controller.skinWidth;
+                result = new Vector3(_spawnPosition.x, groundedY, _spawnPosition.z);
+                return true;
+            }
+            return false;
+        }
+
         private void OnDrawGizmosSelected()
         {
             Color transparentGreen = new Color(0.0f, 1.0f, 0.0f, 0.35f);
@@ -395,7 +452,7 @@ namespace StarterAssets
             {
                 if (FootstepAudioClips.Length > 0)
                 {
-                    var index = Random.Range(0, FootstepAudioClips.Length);
+                    var index = UnityEngine.Random.Range(0, FootstepAudioClips.Length);
                     AudioSource.PlayClipAtPoint(FootstepAudioClips[index], transform.TransformPoint(_controller.center), FootstepAudioVolume);
                 }
             }

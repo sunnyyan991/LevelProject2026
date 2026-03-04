@@ -51,7 +51,7 @@
                     "initialStateCheck": false
                 },
                 {
-                    "name": "Attract",
+                    "name": "Cast",
                     "type": "Button",
                     "id": "8f948b0a-1d9d-4d81-8ce5-9c7ad31042f3",
                     "expectedControlType": "",
@@ -255,7 +255,7 @@
                     "interactions": "",
                     "processors": "",
                     "groups": "",
-                    "action": "Attract",
+                    "action": "Cast",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }
