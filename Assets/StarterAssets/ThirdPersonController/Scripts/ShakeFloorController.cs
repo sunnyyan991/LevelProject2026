@@ -25,9 +25,6 @@ namespace StarterAssets
         [Tooltip("Allow re-trigger while sequence is playing.")]
         public bool AllowRetriggerWhilePlaying = false;
 
-        [Tooltip("If true, the floor sequence can only be triggered once.")]
-        public bool TriggerOnlyOnce = false;
-
         [Tooltip("Play FloorIdle after FloorUp finishes.")]
         public bool ReturnToIdleAfterUp = true;
 
@@ -48,7 +45,7 @@ namespace StarterAssets
         private readonly Collider[] _overlapResults = new Collider[16];
         private bool _wasPlayerDetectedLastFrame;
         private Collider _lastDetectedPlayerCollider;
-        private bool _hasTriggered;
+        private bool _readyForNextTrigger = true;
 
         private void Awake()
         {
@@ -80,6 +77,10 @@ namespace StarterAssets
             {
                 TryStartSequence(_lastDetectedPlayerCollider);
             }
+            else if (!isPlayerDetected)
+            {
+                _readyForNextTrigger = true;
+            }
 
             _wasPlayerDetectedLastFrame = isPlayerDetected;
         }
@@ -105,7 +106,7 @@ namespace StarterAssets
                 return;
             }
 
-            if (TriggerOnlyOnce && _hasTriggered)
+            if (!_readyForNextTrigger)
             {
                 return;
             }
@@ -125,7 +126,7 @@ namespace StarterAssets
                 StopCoroutine(_sequenceCoroutine);
             }
 
-            _hasTriggered = true;
+            _readyForNextTrigger = false;
             _sequenceCoroutine = StartCoroutine(PlayDownUpSequence());
         }
 
@@ -215,11 +216,6 @@ namespace StarterAssets
 
                     FloorAnimator.Play(FloorIdleStateName, 0, 0f);
                 }
-            }
-
-            if (!TriggerOnlyOnce)
-            {
-                _hasTriggered = false;
             }
 
             _sequenceCoroutine = null;
